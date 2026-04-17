@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teleorbit - Visualization</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --text-color: #e2e8f0;
+            --accent-color: #38bdf8;
+            --border-color: #1e293b;
+            --success: #22c55e;
+            --error: #ef4444;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(2ef, 68, 68, 0.05) 0%, transparent 50%);
+        }
+
+        /* Sidebar UI */
+        .sidebar {
+            width: 350px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .header img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            padding: 2px;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            font-weight: 700;
+            background: linear-gradient(90deg, #fff, var(--accent-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .input-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: var(--accent-color);
+        }
+        .val-display {
+            font-variant-numeric: tabular-nums;
+            font-family: monospace;
+            background: #0f172a;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            width: 80px;
+            text-align: right;
+            font-size: 0.9rem;
+        }
+
+        .results {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: auto;
+        }
+        .results h3 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 1rem;
+            color: #fff;
+        }
+        .check-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .badge.pass { background: rgba(34, 197, 94, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .badge.fail { background: rgba(239, 68, 68, 0.2); color: var(--error); border: 1px solid var(--error); }
+
+        .overall-status {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .status-pass { color: var(--success); }
+        .status-fail { color: var(--error); }
+
+        /* Canvas Area */
+        .canvas-container {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            display: block;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 6px;
+            pointer-events: none;
+            font-size: 0.85rem;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 250px;
+            line-height: 1.4;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .presets {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .preset-btn {
+            background: #1e293b;
+            border: 1px solid var(--accent-color);
+            color: var(--text-color);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .preset-btn:hover {
+            background: var(--accent-color);
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="header">
+            <img src="../assets/logo.png" alt="Logo">
+            <h1>Teleorbit</h1>
+        </div>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-top: -10px;">CCSDS Packet Validator Interactive Demo</p>
+
+        <div class="presets">
+            <button class="preset-btn" onclick="setPreset(400, 7.66)">ISS (LEO)</button>
+            <button class="preset-btn" onclick="setPreset(35786, 3.07)">Geostationary</button>
+            <button class="preset-btn" style="border-color: var(--error);" onclick="setPreset(50, 8.00)">Crash (Too Low)</button>
+            <button class="preset-btn" style="border-color: var(--error);" onclick="setPreset(1000, 11.2)">Escape (Too Fast)</button>
+        </div>
+
+        <div class="input-group">
+            <label>Altitude (km)</label>
+            <div class="slider-container">
+                <input type="range" id="altSlider" min="0" max="60000" step="10" value="400">
+                <div class="val-display" id="altVal">400</div>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>Velocity (km/s)</label>
+            <div class="slider-container">
+                <input type="range" id="velSlider" min="0" max="15" step="0.01" value="7.66">
+                <div class="val-display" id="velVal">7.66</div>
+            </div>
+        </div>
+
+        <div class="results">
+            <h3>Validation Results</h3>
+            
+            <div class="check-item" title="Must be between ~150km and geostationary (~42,164km) radius.">
+                <span>Altitude Range Check</span>
+                <span id="badge-alt" class="badge">--</span>
+            </div>
+            
+            <div class="check-item" title="Must be within 50% to 200% of local circular speed.">
+                <span>Velocity Implausible Check</span>
+                <span id="badge-vel" class="badge">--</span>
+            </div>
+            
+            <div class="check-item" title="Specific Orbital Energy must be negative (bound orbit).">
+                <span>Bound Orbit Check (Energy)</span>
+                <span id="badge-energy" class="badge">--</span>
+            </div>
+            
+            <div class="overall-status" id="overall-status">
+                Waiting...
+            </div>
+        </div>
+        <p style="font-size: 0.75rem; color: #64748b; margin-top: auto; text-align: center;">
+            Hover over the diagram points for physics details.
+        </p>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="orbitCanvas"></canvas>
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <script>
+        // Physical Constants (matching the C library)
+        const MU = 3.986004418e14; // m^3/s^2
+        const EARTH_RADIUS_M = 6371000.0;
+        const R_MIN_M = 6521000.0; // ~150km altitude
+        const R_MAX_M = 42164000.0; // Geo radius
+
+        // UI Elements
+        const altSlider = document.getElementById('altSlider');
+        const velSlider = document.getElementById('velSlider');
+        const altVal = document.getElementById('altVal');
+        const velVal = document.getElementById('velVal');
+        
+        const badgeAlt = document.getElementById('badge-alt');
+        const badgeVel = document.getElementById('badge-vel');
+        const badgeEnergy = document.getElementById('badge-energy');
+        const overallStatus = document.getElementById('overall-status');
+        
+        const canvas = document.getElementById('orbitCanvas');
+        const ctx = canvas.getContext('2d');
+        const tooltip = document.getElementById('tooltip');
+
+        let width, height, centerX, centerY;
+        // Scale: map 50,000 km to screen radius
+        let scaleFactor = 1; 
+
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            centerX = width / 2;
+            centerY = height / 2;
+            
+            // Adjust scale based on screen size (fit 50,000km radius)
+            scaleFactor = Math.min(width, height) / 2 / 50000000;
+            draw();
+        }
+
+        window.addEventListener('resize', resize);
+
+        function setPreset(altKm, velKms) {
+            altSlider.value = altKm;
+            velSlider.value = velKms;
+            updatePhysics();
+        }
+
+        function setBadge(el, pass, message) {
+            el.className = 'badge ' + (pass ? 'pass' : 'fail');
+            el.innerText = pass ? 'PASS' : 'FAIL';
+        }
+
+        let currentValidation = {};
+
+        function validateOrbit(r_m, v_ms) {
+            let altPass = true;
+            let velPass = true;
+            let energyPass = true;
+            
+            // 1. Altitude
+            if (r_m < R_MIN_M || r_m > R_MAX_M) {
+                altPass = false;
+            }
+
+            // 2. Velocity
+            const v_circular = Math.sqrt(MU / r_m);
+            const v_lo = 0.5 * v_circular;
+            const v_hi = 2.0 * v_circular;
+            if (v_ms < v_lo || v_ms > v_hi) {
+                velPass = false;
+            }
+
+            // 3. Energy
+            const energy = (v_ms * v_ms) / 2.0 - MU / r_m;
+            if (energy >= 0.0) {
+                energyPass = false;
+            }
+
+            const overall = altPass && velPass && energyPass;
+
+            // Update UI
+            setBadge(badgeAlt, altPass);
+            setBadge(badgeVel, velPass);
+            setBadge(badgeEnergy, energyPass);
+
+            if (overall) {
+                overallStatus.className = 'overall-status status-pass';
+                overallStatus.innerText = '✅ VALID TELEMETRY';
+            } else {
+                overallStatus.className = 'overall-status status-fail';
+                overallStatus.innerText = '❌ IMPLAUSIBLE DATA';
+            }
+
+            currentValidation = {
+                r_m, v_ms, v_circular, energy, overall, altPass, velPass, energyPass, v_lo, v_hi
+            };
+        }
+
+        function updatePhysics() {
+            const altKm = parseFloat(altSlider.value);
+            const velKms = parseFloat(velSlider.value);
+            
+            altVal.innerText = altKm.toFixed(0);
+            velVal.innerText = velKms.toFixed(2);
+
+            const r_m = (altKm * 1000) + EARTH_RADIUS_M;
+            const v_ms = velKms * 1000;
+
+            validateOrbit(r_m, v_ms);
+            draw();
+        }
+
+        altSlider.addEventListener('input', updatePhysics);
+        velSlider.addEventListener('input', updatePhysics);
+
+        // Drawing functionality
+        function drawCircle(x, y, radius, stroke, fill, lineWidth=1) {
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+            if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth; ctx.stroke(); }
+        }
+
+        // Draw an orbit path (simplification: elliptical path based on energy/velocity)
+        function drawOrbitPath() {
+            const v = currentValidation;
+            if (!v.r_m) return;
+
+            const r_screen = v.r_m * scaleFactor;
+            
+            ctx.beginPath();
+            // Very simplified visual representation of orbit shape based on circular vs actual velocity
+            const ratio = v.v_ms / v.v_circular;
+            
+            if (v.energy >= 0) {
+                // Escape trajectory (hyperbola/parabola)
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)'; // red dashed
+                ctx.setLineDash([5, 5]);
+                
+                ctx.moveTo(centerX - r_screen*2, centerY + r_screen*2);
+                ctx.quadraticCurveTo(centerX, centerY - r_screen, centerX + r_screen*2, centerY + r_screen*2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else {
+                // Bound orbit (ellipse)
+                ctx.strokeStyle = v.overall ? 'rgba(56, 189, 248, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+                
+                // Exaggerate eccentricity for visual effect based on velocity diff
+                const eX = Math.max(0.5, 2 - ratio); 
+                const eY = ratio;
+
+                ctx.ellipse(centerX, centerY + (r_screen*(1-eY)/2), r_screen*eX, r_screen*eY, 0, 0, Math.PI*2);
+                ctx.stroke();
+            }
+        }
+
+        let satAngle = 0;
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. Draw limits
+            // Valid region (150km to GEO)
+            const rMinScreen = R_MIN_M * scaleFactor;
+            const rMaxScreen = R_MAX_M * scaleFactor;
+            
+            // Draw valid zone background
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, rMaxScreen, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.05)'; // faint green
+            ctx.fill();
+
+            // 2. Draw Earth
+            const rEarthScreen = EARTH_RADIUS_M * scaleFactor;
+            drawCircle(centerX, centerY, rEarthScreen, '#3b82f6', '#1e3a8a', 2);
+            // Earth grid lines for wireframe look
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+            ctx.beginPath();
+            ctx.moveTo(centerX - rEarthScreen, centerY); ctx.lineTo(centerX + rEarthScreen, centerY);
+            ctx.moveTo(centerX, centerY - rEarthScreen); ctx.lineTo(centerX, centerY + rEarthScreen);
+            ctx.stroke();
+
+            // Dead zone (atmosphere/crash)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, rMinScreen, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; // semi transparent red
+            ctx.fill();
+
+            drawOrbitPath();
+
+            // Draw Satellite
+            if (currentValidation.r_m) {
+                const r_sat = currentValidation.r_m * scaleFactor;
+                // Animate satellite moving around
+                satAngle -= (currentValidation.v_ms / currentValidation.r_m) * 10; // fake angular velocity visually
+                
+                // Place satellite on the right side fixed for UI simplicity, or animate it
+                const satX = centerX;
+                const satY = centerY - r_sat; // Top position
+                
+                // Draw Velocity Vector
+                const vecLen = (currentValidation.v_ms / 1000) * 15; // scaled for UI
+                ctx.beginPath();
+                ctx.moveTo(satX, satY);
+                ctx.lineTo(satX + vecLen, satY); // pointing right
+                
+                if (currentValidation.velPass) {
+                    ctx.strokeStyle = '#22c55e'; // green
+                } else {
+                    ctx.strokeStyle = '#ef4444'; // red
+                }
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Arrow head
+                ctx.beginPath();
+                ctx.moveTo(satX + vecLen, satY);
+                ctx.lineTo(satX + vecLen - 10, satY - 5);
+                ctx.lineTo(satX + vecLen - 10, satY + 5);
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.fill();
+
+                // Satellite dot
+                drawCircle(satX, satY, 6, '#fff', currentValidation.overall ? '#38bdf8' : '#ef4444', 2);
+                
+                // Invisible hover target
+                ctx.beginPath();
+                ctx.arc(satX, satY, 20, 0, Math.PI*2);
+                ctx.satelliteHoverZone = {x: satX, y: satY, r: 20};
+            }
+        }
+
+        // Tooltip logic
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            let showTooltip = false;
+            
+            // Check satellite hover
+            if (ctx.satelliteHoverZone) {
+                const z = ctx.satelliteHoverZone;
+                const dist = Math.hypot(mouseX - z.x, mouseY - z.y);
+                if (dist <= z.r) {
+                    showTooltip = true;
+                    
+                    const v = currentValidation;
+                    tooltip.innerHTML = `
+                        <strong style="color:var(--accent-color)">Current State</strong><br>
+                        Alt: ${((v.r_m - EARTH_RADIUS_M)/1000).toFixed(0)} km<br>
+                        Vel: ${(v.v_ms/1000).toFixed(2)} km/s<br>
+                        <br>
+                        <strong>Physics Validations:</strong><br>
+                        <span style="color:${v.altPass?'var(--success)':'var(--error)'}">
+                          R Bounds: [150km, 42164km]
+                        </span><br>
+                        <span style="color:${v.velPass?'var(--success)':'var(--error)'}">
+                          V Circular: ${(v.v_circular/1000).toFixed(2)} km/s<br>
+                          V Bounds: [${(v.v_lo/1000).toFixed(2)}, ${(v.v_hi/1000).toFixed(2)}]
+                        </span><br>
+                        <span style="color:${v.energyPass?'var(--success)':'var(--error)'}">
+                          Spec. Energy: ${v.energy.toExponential(2)} J/kg
+                        </span>
+                    `;
+                    tooltip.style.left = (e.clientX + 15) + 'px';
+                    tooltip.style.top = (e.clientY + 15) + 'px';
+                    tooltip.style.opacity = 1;
+                }
+            }
+
+            if (!showTooltip) {
+                tooltip.style.opacity = 0;
+            }
+        });
+
+        // Init
+        resize();
+        updatePhysics();
+
+        // Animation loop
+        function animate() {
+            draw();
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+    </script>
+</body>
+</html>
